@@ -1,7 +1,10 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.kwsUtils=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 function defaultOnerror(error) {
-	console.error(error);
+	if(error) console.error(error);
 }
+
+function noop(){};
+
 
 function WebRtcPeer(mode, localVideo, remoteVideo, onsdpoffer, onerror, videoStream) {
 
@@ -9,10 +12,10 @@ function WebRtcPeer(mode, localVideo, remoteVideo, onsdpoffer, onerror, videoStr
 
 	this.localVideo = localVideo;
 	this.remoteVideo = remoteVideo;
-	this.onerror = (!onerror) ? defaultOnerror : onerror;
+	this.onerror = onerror || defaultOnerror;
 	this.stream = videoStream;
 	this.mode = mode;
-	this.onsdpoffer = onsdpoffer;
+	this.onsdpoffer = onsdpoffer || noop;
 }
 
 WebRtcPeer.prototype.start = function() {
@@ -55,10 +58,9 @@ WebRtcPeer.prototype.start = function() {
 
 		var offerSdp = pc.localDescription.sdp;
 		console.log('ICE negotiation completed');
-		if (self.onsdpoffer) {
-			console.log('Invokin SDP offer callback function');
-			self.onsdpoffer(offerSdp, self);
-		}
+
+		self.onsdpoffer(offerSdp, self);
+//		self.emit('sdpoffer', offerSdp);
 	};
 
 }
@@ -68,6 +70,19 @@ WebRtcPeer.prototype.dispose = function() {
 	//FIXME This is not yet implemented in firefox
 	//if (this.stream) this.pc.removeStream(this.stream);
 	this.pc.close();
+	if(this.localVideo) this.localVideo.src = null;
+
+	if(this.stream)
+	{
+		this.stream.getAudioTracks().forEach(function(track)
+		{
+			track.stop()
+		})
+		this.stream.getVideoTracks().forEach(function(track)
+		{
+			track.stop()
+		})
+	}
 };
 
 WebRtcPeer.prototype.userMediaConstraints = {
@@ -78,13 +93,6 @@ WebRtcPeer.prototype.userMediaConstraints = {
 				maxFrameRate : 15,
 				minFrameRate: 15
 			}
-		}
-};
-
-WebRtcPeer.prototype.constraints = {
-		mandatory: {
-			OfferToReceiveAudio: true,
-			OfferToReceiveVideo: true
 		}
 };
 
@@ -120,7 +128,7 @@ WebRtcPeer.start = function(mode, localVideo, remoteVideo, onSdp, onerror, media
 	var wp = new WebRtcPeer(mode, localVideo, remoteVideo, onSdp, onerror, videoStream);
 
 	if (wp.mode !== 'recv' && !wp.stream) {
-		var constraints = mediaConstraints ? 
+		var constraints = mediaConstraints ?
 				mediaConstraints : wp.userMediaConstraints;
 
 		getUserMedia(constraints, function(userStream) {
