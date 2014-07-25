@@ -1,10 +1,7 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 function defaultOnerror(error) {
-	if(error) console.error(error);
+	console.error(error);
 }
-
-function noop(){};
-
 
 function WebRtcPeer(mode, localVideo, remoteVideo, onsdpoffer, onerror, videoStream) {
 
@@ -12,10 +9,10 @@ function WebRtcPeer(mode, localVideo, remoteVideo, onsdpoffer, onerror, videoStr
 
 	this.localVideo = localVideo;
 	this.remoteVideo = remoteVideo;
-	this.onerror = onerror || defaultOnerror;
+	this.onerror = (!onerror) ? defaultOnerror : onerror;
 	this.stream = videoStream;
 	this.mode = mode;
-	this.onsdpoffer = onsdpoffer || noop;
+	this.onsdpoffer = onsdpoffer;
 }
 
 WebRtcPeer.prototype.start = function() {
@@ -58,9 +55,10 @@ WebRtcPeer.prototype.start = function() {
 
 		var offerSdp = pc.localDescription.sdp;
 		console.log('ICE negotiation completed');
-
-		self.onsdpoffer(offerSdp, self);
-//		self.emit('sdpoffer', offerSdp);
+		if (self.onsdpoffer) {
+			console.log('Invokin SDP offer callback function');
+			self.onsdpoffer(offerSdp, self);
+		}
 	};
 
 }
@@ -70,19 +68,6 @@ WebRtcPeer.prototype.dispose = function() {
 	//FIXME This is not yet implemented in firefox
 	//if (this.stream) this.pc.removeStream(this.stream);
 	this.pc.close();
-	if(this.localVideo) this.localVideo.src = null;
-
-	if(this.stream)
-	{
-		this.stream.getAudioTracks().forEach(function(track)
-		{
-			track.stop()
-		})
-		this.stream.getVideoTracks().forEach(function(track)
-		{
-			track.stop()
-		})
-	}
 };
 
 WebRtcPeer.prototype.userMediaConstraints = {
@@ -93,6 +78,13 @@ WebRtcPeer.prototype.userMediaConstraints = {
 				maxFrameRate : 15,
 				minFrameRate: 15
 			}
+		}
+};
+
+WebRtcPeer.prototype.constraints = {
+		mandatory: {
+			OfferToReceiveAudio: true,
+			OfferToReceiveVideo: true
 		}
 };
 
@@ -128,7 +120,7 @@ WebRtcPeer.start = function(mode, localVideo, remoteVideo, onSdp, onerror, media
 	var wp = new WebRtcPeer(mode, localVideo, remoteVideo, onSdp, onerror, videoStream);
 
 	if (wp.mode !== 'recv' && !wp.stream) {
-		var constraints = mediaConstraints ?
+		var constraints = mediaConstraints ? 
 				mediaConstraints : wp.userMediaConstraints;
 
 		getUserMedia(constraints, function(userStream) {
